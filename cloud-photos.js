@@ -105,5 +105,12 @@
     };
     imageURL(id).then(url => { image.src = url; }).catch(error => onError(error.message));
   };
-  window.MemorialCloudPhotos = { list, add, attachImage };
+  const read = async id => remember((await call('read', { id })).photo);
+  const saveStickers = async (id, stickers, revision) => remember((await call('save-stickers', { id, stickers, revision })).photo);
+  const remove = async id => {
+    await call('delete', { id });
+    urls.delete(id);
+    track(id, false);
+  };
+  window.MemorialCloudPhotos = { list, add, attachImage, read, saveStickers, remove };
 })();

@@ -2131,7 +2131,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
               <button class="photo-thumb" type="button" data-photo="04" style="--photo-x:7%;--photo-y:62%;--photo-angle:6deg;--art-angle:80deg" aria-label="放大照片 04"><span class="photo-art">照片 04</span></button>
               <button class="photo-thumb" type="button" data-photo="05" style="--photo-x:54%;--photo-y:63%;--photo-angle:-8deg;--art-angle:300deg" aria-label="放大照片 05"><span class="photo-art">照片 05</span></button>
             </div>
-            <p class="photo-upload-status" data-upload-status role="status">云端照片保存在私有 R2 存储桶。支持 JPG、PNG、WebP，每张最多 20 MB、4000 万像素；贴纸和留言仍保存在本地。</p>
+            <p class="photo-upload-status" data-upload-status role="status">云端照片保存在私有 R2 存储桶，贴纸可保存到云端同步。支持 JPG、PNG、WebP，每张最多 20 MB、4000 万像素；留言仍保存在本地。</p>
           </section>
           <section class="love-messages" aria-labelledby="messages-title">
             <div class="love-section-head"><h3 id="messages-title">留言墙</h3><button class="message-button" type="button" data-new-message>写留言</button></div>
@@ -2198,7 +2198,8 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
       <div class="sticker-tools" aria-label="照片贴纸工具">
         <button type="button" data-add-sticker aria-pressed="false">贴贴纸</button>
         <button type="button" data-save-stickers>保存贴纸</button>
-        <button type="button" data-download-photo>保存图片</button>
+        <button type="button" data-download-photo>下载图片（仅本机）</button>
+        <button type="button" data-delete-photo>删除照片</button>
         <button type="button" data-delete-sticker disabled>删除选中贴纸</button>
         <button type="button" data-clear-stickers disabled>清空本张</button>
       </div>
@@ -2386,7 +2387,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     ['bow', '🎀', '蝴蝶结'], ['rainbow', '🌈', '彩虹'], ['heart-hands', '🫶', '比心']
   ];
   const stickerById = new Map(stickerLibrary.map(([id, emoji, name]) => [id, { emoji, name }]));
-  // Drafts live in memory; Save commits only the current photo to local storage.
+  // Cloud drafts save explicitly to Supabase; legacy local photos stay local.
   const stickerStorageKey = 'love-memorial.photo-stickers.v1';
   const readSavedStickers = () => {
     const value = JSON.parse(localStorage.getItem(stickerStorageKey) || '{}');
@@ -2403,6 +2404,22 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     });
   } catch { storageAvailable = false; }
   let activePhotoId = null;
+  let activePhotoCloud = false;
+  let stickerRevision = 0;
+  let photoViewVersion = 0;
+  let photoActionBusy = false;
+  let cloudStickerLoaded = false;
+  const saveStickersButton = root.querySelector('[data-save-stickers]');
+  const deletePhotoButton = root.querySelector('[data-delete-photo]');
+  const setPhotoActionBusy = value => {
+    photoActionBusy = value;
+    photoContent.inert = value;
+    root.querySelectorAll('.sticker-tools button').forEach(button => { button.disabled = value; });
+    if (!value) {
+      updateStickerTools();
+      saveStickersButton.disabled = activePhotoCloud && !cloudStickerLoaded;
+    }
+  };
   let selectedStickerId = null;
   let stickerSerial = 0;
   let placingSticker = false;
@@ -2473,6 +2490,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     button.textContent = emoji;
     button.setAttribute('aria-label', name);
     button.addEventListener('click', () => {
+      if (getStickers().length >= 50) { setStatus('每张照片最多 50 张贴纸。'); return; }
       const item = { id: `sticker-${Date.now()}-${++stickerSerial}`, stickerId: id, ...insertionPoint };
       getStickers().push(item);
       selectedStickerId = item.id;
@@ -2488,7 +2506,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     // Keyboard users can open the library at the center without a pointer.
     if (event.detail === 0) { openPicker({ x: .5, y: .5 }); return; }
     setPlacing(!placingSticker);
-    setStatus(placingSticker ? '点击照片上的一个位置，选择要贴的表情。' : '编辑后点击「保存贴纸」，保存在当前浏览器。');
+    setStatus(placingSticker ? '点击照片上的一个位置，选择要贴的表情。' : activePhotoCloud ? '编辑后点击「保存贴纸到云端」同步。' : '编辑后点击「保存贴纸」，保存在当前浏览器。');
   });
   root.querySelector('[data-close-picker]').addEventListener('click', () => closePicker(true));
   photoContent.addEventListener('contextmenu', (event) => {
@@ -2510,16 +2528,28 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     setStatus('已删除选中的贴纸。');
   };
   deleteStickerButton.addEventListener('click', removeSelectedSticker);
-  root.querySelector('[data-save-stickers]').addEventListener('click', () => {
-    if (!activePhotoId) return;
+  saveStickersButton.addEventListener('click', async () => {
+    if (!activePhotoId || photoActionBusy) return;
+    const id = activePhotoId;
+    setPhotoActionBusy(true);
     try {
-      const saved = readSavedStickers();
-      saved[activePhotoId] = getStickers();
-      localStorage.setItem(stickerStorageKey, JSON.stringify(saved));
-      storageAvailable = true;
-      setStatus('已保存到当前浏览器，刷新后仍可恢复。不会同步到其他设备。');
-    } catch {
-      setStatus('保存失败：当前预览或浏览器禁止本地存储。贴纸暂时保留在本页，请在独立预览页面中保存。');
+      if (activePhotoCloud) {
+        if (!cloudStickerLoaded) throw new Error('请关闭并重新打开照片，加载云端贴纸后再保存。');
+        setStatus('正在保存贴纸到云端…');
+        const record = await window.MemorialCloudPhotos.saveStickers(id, getStickers(), stickerRevision);
+        stickerRevision = record.stickerRevision;
+        setStatus('贴纸已保存到云端。其他设备重新打开这张照片即可看到；原图保持不变。');
+      } else {
+        const saved = readSavedStickers();
+        saved[id] = getStickers();
+        localStorage.setItem(stickerStorageKey, JSON.stringify(saved));
+        storageAvailable = true;
+        setStatus('已保存到当前浏览器。本地旧照片的贴纸不会同步。');
+      }
+    } catch (error) {
+      setStatus(`保存失败：${error.message} 当前编辑仍保留在本页。`);
+    } finally {
+      setPhotoActionBusy(false);
     }
   });
   const downloadPhotoButton = root.querySelector('[data-download-photo]');
@@ -2616,7 +2646,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
       setStatus('图片生成失败，请在独立预览页重试，并确认照片已加载且允许导出。');
     } finally {
       downloadPhotoButton.disabled = false;
-      downloadPhotoButton.textContent = '保存图片';
+      downloadPhotoButton.textContent = '下载图片（仅本机）';
     }
   });
   clearStickersButton.addEventListener('click', () => {
@@ -2675,9 +2705,15 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     }
   });
   let photoOpener;
-  const openPhoto = (button) => {
+  const openPhoto = async (button) => {
+    if (photoActionBusy) return;
+    const version = ++photoViewVersion;
     photoOpener = button;
     activePhotoId = button.dataset.photo;
+    activePhotoCloud = button.dataset.cloud === 'true';
+    cloudStickerLoaded = false;
+    stickerRevision = 0;
+    if (activePhotoCloud) photoStickers.set(activePhotoId, []);
     if (!photoStickers.has(activePhotoId)) photoStickers.set(activePhotoId, []);
     selectedStickerId = null;
     closePicker();
@@ -2693,6 +2729,22 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     setStatus(storageAvailable ? '编辑后点击「保存贴纸」，保存在当前浏览器。' : '当前预览限制了本地存储；请在独立预览页面中保存。');
     photoContent.style.setProperty('--art-angle', button.style.getPropertyValue('--art-angle') || '140deg');
     photoViewer.showModal();
+    saveStickersButton.textContent = activePhotoCloud ? '保存贴纸到云端' : '保存贴纸（本地）';
+    setPhotoActionBusy(false);
+    if (activePhotoCloud) {
+      setPhotoActionBusy(true);
+      setStatus('正在加载云端贴纸…');
+      try {
+        const record = await window.MemorialCloudPhotos.read(activePhotoId);
+        if (version !== photoViewVersion) return;
+        photoStickers.set(activePhotoId, (record.stickers || []).filter(validSticker));
+        stickerRevision = record.stickerRevision;
+        cloudStickerLoaded = true;
+        renderStickers();
+        setStatus('编辑后点击「保存贴纸到云端」同步；「下载图片」只保存到本机。');
+      } catch (error) { if (version === photoViewVersion) setStatus(`云端贴纸加载失败：${error.message} 请关闭后重试。`); }
+      finally { if (version === photoViewVersion) setPhotoActionBusy(false); }
+    }
   };
   const album = root.querySelector('.full-gallery');
   album.replaceChildren();
@@ -2745,7 +2797,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
         transaction.onabort = () => reject(transaction.error || new Error('照片保存已取消'));
       });
     };
-    return { list: () => run('readonly', (store) => store.getAll()), add: (record) => run('readwrite', (store) => store.add(record)) };
+    return { list: () => run('readonly', (store) => store.getAll()), add: (record) => run('readwrite', (store) => store.add(record)), remove: id => run('readwrite', store => store.delete(id)) };
   })();
   const photoUpload = root.querySelector('[data-upload-photos]');
   const photoSource = root.querySelector('[data-photo-source]');
@@ -2763,6 +2815,33 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     [photoUpload, photoSource, refreshPhotos, morePhotos].forEach(control => { control.disabled = value; });
   };
   const imageUrls = new Map();
+  deletePhotoButton.addEventListener('click', async () => {
+    if (!activePhotoId || photoActionBusy || photosBusy) return;
+    const id = activePhotoId;
+    const cloud = activePhotoCloud;
+    if (!window.confirm(cloud ? '永久删除这张云端照片及其贴纸？所有设备都会失去访问，无法撤销。' : '删除当前浏览器里的这张照片及其贴纸？无法撤销。')) return;
+    setPhotoActionBusy(true);
+    setPhotosBusy(true);
+    setStatus('正在删除照片…');
+    try {
+      if (cloud) await window.MemorialCloudPhotos.remove(id);
+      else await localPhotoRepository.remove(id);
+      photoStickers.delete(id);
+      try {
+        const saved = readSavedStickers();
+        delete saved[id];
+        localStorage.setItem(stickerStorageKey, JSON.stringify(saved));
+      } catch { /* Photo deletion succeeded; local draft cleanup is best effort. */ }
+      if (imageUrls.has(id)) { URL.revokeObjectURL(imageUrls.get(id)); imageUrls.delete(id); }
+      uploadedPhotos = uploadedPhotos.filter(record => record.id !== id);
+      if (cloud && nextOffset !== null) nextOffset = Math.max(0, nextOffset - 1);
+      photoViewer.close();
+      renderUploadedPhotos();
+      uploadStatus.textContent = cloud ? '云端照片及贴纸已永久删除，其他设备刷新相册后生效。' : '本地照片及贴纸已删除。';
+      photoUpload.focus();
+    } catch (error) { setStatus(`删除未完成：${error.message}`); }
+    finally { setPhotoActionBusy(false); setPhotosBusy(false); }
+  });
   const placements = [
     ['5%', '7%', '-9deg'], ['54%', '10%', '7deg'], ['30%', '35%', '-4deg'],
     ['7%', '62%', '6deg'], ['54%', '63%', '-8deg']
