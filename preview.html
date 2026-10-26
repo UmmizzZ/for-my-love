@@ -2136,7 +2136,6 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
           <section class="love-messages" aria-labelledby="messages-title">
             <div class="love-section-head"><h3 id="messages-title">留言墙</h3><button class="message-button" type="button" data-new-message>写留言</button></div>
             <div class="message-actions">
-              <select data-message-source aria-label="留言来源"><option value="cloud">云端留言</option><option value="local">本地旧留言</option></select>
               <button class="message-button" type="button" data-refresh-messages>刷新留言</button>
             </div>
             <div class="message-list"></div>
@@ -2145,7 +2144,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
               <span data-message-page></span>
               <button class="message-button" type="button" data-message-next aria-label="下一页留言">下一页</button>
             </div>
-            <p class="message-status" data-message-status role="status">云端留言由两台设备共享；本地旧留言不会自动迁移。</p>
+            <p class="message-status" data-message-status role="status">留言保存在云端，其他设备刷新后可见。</p>
           </section>
         </div>
         <section class="love-days" aria-labelledby="days-title">
@@ -2220,40 +2219,6 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
 <script>
 (() => {
   const root = document.getElementById('horizontal-love-page');
-  // MESSAGE_STORE_START: storage is injected so failure and persistence can be checked independently.
-  const createMessageStore = (storage) => {
-    const key = 'love-memorial.messages.v1';
-    const read = () => {
-      const raw = storage.getItem(key);
-      if (raw === null) return [];
-      const records = JSON.parse(raw);
-      if (!Array.isArray(records) || !records.every((entry) => entry && typeof entry.id === 'string' && typeof entry.author === 'string' && typeof entry.body === 'string' && entry.body.trim().length > 0 && entry.body.length <= 500 && entry.author.length <= 24 && Number.isFinite(Date.parse(entry.createdAt)) && Number.isFinite(Date.parse(entry.updatedAt)))) throw new Error('Invalid saved messages');
-      return records;
-    };
-    const save = (id, author, body) => {
-      author = author.trim();
-      body = body.trim();
-      if (!body || body.length > 500 || author.length > 24) throw new Error('Invalid message');
-      const records = read();
-      const now = new Date().toISOString();
-      if (id) {
-        const record = records.find((entry) => entry.id === id);
-        if (!record) throw new Error('Message no longer exists');
-        Object.assign(record, { author, body, updatedAt: now });
-      } else {
-        records.unshift({ id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`, author, body, createdAt: now, updatedAt: now });
-      }
-      storage.setItem(key, JSON.stringify(records));
-      return records;
-    };
-    const remove = (id) => {
-      const records = read().filter((entry) => entry.id !== id);
-      storage.setItem(key, JSON.stringify(records));
-      return records;
-    };
-    return { key, read, save, remove };
-  };
-  // MESSAGE_STORE_END
   // CLOUD_MESSAGE_STORE_START
   const createCloudMessageStore = (getClient) => {
     const normalize = row => ({ ...row, createdAt: row.created_at, updatedAt: row.updated_at });
@@ -2298,7 +2263,6 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     await window.MemorialAuth.requireUser();
     return window.MemorialAuth.getClient();
   });
-  const messageStore = createMessageStore({ getItem: (key) => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) });
   const messageList = root.querySelector('.message-list');
   const messageDialog = root.querySelector('.message-dialog');
   const messageForm = root.querySelector('[data-message-form]');
@@ -2318,12 +2282,10 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
   let messageBusy = false;
   let editingMessageRevision = 0;
   let newMessageId;
-  const messageSource = root.querySelector('[data-message-source]');
   const messageRefresh = root.querySelector('[data-refresh-messages]');
-  const cloudMessages = () => messageSource.value === 'cloud';
   const setMessageBusy = value => {
     messageBusy = value;
-    [messageSource, messageRefresh, messageSubmit, messageCancel, messageAuthor, messageBody, root.querySelector('[data-new-message]')].forEach(control => { control.disabled = value; });
+    [messageRefresh, messageSubmit, messageCancel, messageAuthor, messageBody, root.querySelector('[data-new-message]')].forEach(control => { control.disabled = value; });
   };
   const formatMessageDate = (date) => new Date(date).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
   const openMessage = (mode, entry, opener) => {
@@ -2340,7 +2302,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     messageAuthor.readOnly = readonly;
     messageBody.readOnly = readonly;
     root.querySelector('#message-dialog-title').textContent = { create: '写留言', edit: '编辑留言', view: '查看留言', delete: '删除这条留言？' }[mode];
-    root.querySelector('[data-message-detail]').textContent = mode === 'delete' ? '删除后无法恢复。取消可保留这条留言。' : entry ? `发布于 ${formatMessageDate(entry.createdAt)}${entry.updatedAt !== entry.createdAt ? ` · 修改于 ${formatMessageDate(entry.updatedAt)}` : ''}` : cloudMessages() ? '最多 500 字，保存到云端，其他设备刷新可见。' : '最多 500 字，仅保存到当前浏览器。';
+    root.querySelector('[data-message-detail]').textContent = mode === 'delete' ? '删除后无法恢复。取消可保留这条留言。' : entry ? `发布于 ${formatMessageDate(entry.createdAt)}${entry.updatedAt !== entry.createdAt ? ` · 修改于 ${formatMessageDate(entry.updatedAt)}` : ''}` : '最多 500 字，保存到云端，其他设备刷新可见。';
     messageSubmit.hidden = mode === 'view';
     messageSubmit.textContent = mode === 'delete' ? '确认删除' : '保存留言';
     messageCancel.textContent = mode === 'view' ? '关闭' : '取消';
@@ -2393,14 +2355,13 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     setMessageBusy(true);
     messageStatus.textContent = '正在加载留言…';
     try {
-      messages = cloudMessages() ? await cloudMessageStore.read() : messageStore.read();
+      messages = await cloudMessageStore.read();
       renderMessages();
-      messageStatus.textContent = cloudMessages() ? '云端留言已更新。其他设备点击「刷新留言」查看最新内容。' : '当前显示本地旧留言，仅当前浏览器可见，未自动迁移。';
+      messageStatus.textContent = '留言已更新。其他设备点击「刷新留言」查看最新内容。';
     } catch (error) { messageStatus.textContent = `加载失败：${error.message} 请点击刷新重试。`; }
     finally { setMessageBusy(false); }
   };
   messageRefresh.addEventListener('click', loadMessages);
-  messageSource.addEventListener('change', () => { messages = []; messagePage = 0; renderMessages(); loadMessages(); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadMessages, { once: true });
   else loadMessages();
   renderMessages();
@@ -2421,29 +2382,21 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     }
     setMessageBusy(true);
     try {
-      if (cloudMessages()) {
-        if (messageMode === 'delete') {
-          await cloudMessageStore.remove(editingMessageId, editingMessageRevision);
-          messages = messages.filter(entry => entry.id !== editingMessageId);
-        } else {
-          const saved = await cloudMessageStore.save(editingMessageId, messageAuthor.value, messageBody.value, editingMessageRevision, newMessageId);
-          messages = [saved, ...messages.filter(entry => entry.id !== saved.id)].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-        }
-      } else messages = messageMode === 'delete' ? messageStore.remove(editingMessageId) : messageStore.save(editingMessageId, messageAuthor.value, messageBody.value);
+      if (messageMode === 'delete') {
+        await cloudMessageStore.remove(editingMessageId, editingMessageRevision);
+        messages = messages.filter(entry => entry.id !== editingMessageId);
+      } else {
+        const saved = await cloudMessageStore.save(editingMessageId, messageAuthor.value, messageBody.value, editingMessageRevision, newMessageId);
+        messages = [saved, ...messages.filter(entry => entry.id !== saved.id)].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      }
       if (messageMode === 'create') messagePage = 0;
       renderMessages();
       messageDialog.close();
-      messageStatus.textContent = cloudMessages() ? '云端留言已更新，其他设备刷新后可见。' : '本地留言已更新，仅当前浏览器可见。';
+      messageStatus.textContent = '留言已更新，其他设备刷新后可见。';
     } catch (error) {
       messageError.textContent = `操作未确认成功：${error.message} 输入内容仍保留。`;
       messageError.hidden = false;
     } finally { setMessageBusy(false); }
-  });
-  window.addEventListener('storage', (event) => {
-    if (cloudMessages() || messageBusy || messageDialog.open) return;
-    if (event.key !== messageStore.key && event.key !== null) return;
-    try { messages = messageStore.read(); renderMessages(); messageStatus.textContent = '已更新当前浏览器其他标签页的留言。'; }
-    catch { messageStatus.textContent = '留言更新失败，请检查本地存储。'; }
   });
   const overlay = root.querySelector('.gallery-overlay');
   const openers = root.querySelectorAll('[data-open-gallery]');
