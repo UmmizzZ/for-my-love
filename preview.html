@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src 'self' blob: data: https://wlmlzooacfxvqdfqdhxr.supabase.co; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src https://66ba6e7455701ed379f8a3f80148d57b.r2.cloudflarestorage.com blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src 'self' blob: data: https://wlmlzooacfxvqdfqdhxr.supabase.co https://66ba6e7455701ed379f8a3f80148d57b.r2.cloudflarestorage.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>属于我们的纪念页</title>
 <style>:root {
   color-scheme: light dark;
@@ -1493,6 +1493,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
 </style>
 <script src="supabase-config.js" defer></script>
 <script src="supabase-auth.js" defer></script>
+<script src="cloud-photos.js" defer></script>
 <script src="access-gate.js" data-protect defer></script>
 <noscript><p>请启用 JavaScript 并登录后访问纪念页。</p></noscript></head>
 <body>
@@ -2117,7 +2118,10 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
               <button class="all-photos" type="button" data-open-gallery>查看全部照片 →</button>
             </div>
             <div class="photo-upload-tools">
+              <select class="all-photos" data-photo-source aria-label="照片存储位置"><option value="cloud">云端相册</option><option value="local">本地旧照片</option></select>
               <button class="all-photos" type="button" data-upload-photos>上传照片</button>
+              <button class="all-photos" type="button" data-refresh-photos>刷新相册</button>
+              <button class="all-photos" type="button" data-more-photos hidden>加载更多</button>
               <input type="file" data-photo-files accept="image/jpeg,image/png,image/webp" multiple hidden>
             </div>
             <div class="photo-wall">
@@ -2127,7 +2131,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
               <button class="photo-thumb" type="button" data-photo="04" style="--photo-x:7%;--photo-y:62%;--photo-angle:6deg;--art-angle:80deg" aria-label="放大照片 04"><span class="photo-art">照片 04</span></button>
               <button class="photo-thumb" type="button" data-photo="05" style="--photo-x:54%;--photo-y:63%;--photo-angle:-8deg;--art-angle:300deg" aria-label="放大照片 05"><span class="photo-art">照片 05</span></button>
             </div>
-            <p class="photo-upload-status" data-upload-status role="status">支持 JPG、PNG、WebP，每张最多 20 MB。照片仅保存在当前浏览器。</p>
+            <p class="photo-upload-status" data-upload-status role="status">云端照片保存在私有 R2 存储桶。支持 JPG、PNG、WebP，每张最多 20 MB、4000 万像素；贴纸和留言仍保存在本地。</p>
           </section>
           <section class="love-messages" aria-labelledby="messages-title">
             <div class="love-section-head"><h3 id="messages-title">留言墙</h3><button class="message-button" type="button" data-new-message>写留言</button></div>
@@ -2681,7 +2685,10 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     root.querySelector('#photo-viewer-title').textContent = button.dataset.photoName || `照片 ${button.dataset.photo}`;
     photoContent.replaceChildren(button.querySelector('.photo-art').cloneNode(true), stickerLayer, stickerPicker);
     const enlargedImage = photoContent.querySelector('img');
-    if (enlargedImage) enlargedImage.loading = 'eager';
+    if (enlargedImage) {
+      enlargedImage.loading = 'eager';
+      if (button.dataset.cloud === 'true') window.MemorialCloudPhotos.attachImage(enlargedImage, activePhotoId, setStatus);
+    }
     renderStickers();
     setStatus(storageAvailable ? '编辑后点击「保存贴纸」，保存在当前浏览器。' : '当前预览限制了本地存储；请在独立预览页面中保存。');
     photoContent.style.setProperty('--art-angle', button.style.getPropertyValue('--art-angle') || '140deg');
@@ -2709,8 +2716,8 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     if (button && root.contains(button)) openPhoto(button);
   });
 
-  // Photo records are isolated from the UI for a later cloud Storage adapter.
-  const photoRepository = (() => {
+  // Preserve the original local database. Never silently fall back after a cloud failure.
+  const localPhotoRepository = (() => {
     let pendingDatabase;
     const connect = () => {
       if (!pendingDatabase) pendingDatabase = new Promise((resolve, reject) => {
@@ -2741,10 +2748,20 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     return { list: () => run('readonly', (store) => store.getAll()), add: (record) => run('readwrite', (store) => store.add(record)) };
   })();
   const photoUpload = root.querySelector('[data-upload-photos]');
+  const photoSource = root.querySelector('[data-photo-source]');
+  const refreshPhotos = root.querySelector('[data-refresh-photos]');
+  const morePhotos = root.querySelector('[data-more-photos]');
   const photoFiles = root.querySelector('[data-photo-files]');
   const uploadStatus = root.querySelector('[data-upload-status]');
   const wall = root.querySelector('.photo-wall');
   let uploadedPhotos = [];
+  let nextOffset = null;
+  let photosBusy = false;
+  const isCloud = () => photoSource.value === 'cloud';
+  const setPhotosBusy = value => {
+    photosBusy = value;
+    [photoUpload, photoSource, refreshPhotos, morePhotos].forEach(control => { control.disabled = value; });
+  };
   const imageUrls = new Map();
   const placements = [
     ['5%', '7%', '-9deg'], ['54%', '10%', '7deg'], ['30%', '35%', '-4deg'],
@@ -2756,6 +2773,7 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     button.className = onWall ? 'photo-thumb' : 'album-photo';
     button.dataset.photo = record.id;
     button.dataset.photoName = record.name;
+    button.dataset.cloud = String(Boolean(record.cloud));
     button.setAttribute('aria-label', `放大照片：${record.name}`);
     if (onWall) {
       const [x, y, angle] = placements[index];
@@ -2766,8 +2784,12 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     const art = document.createElement('span');
     art.className = 'photo-art';
     const image = document.createElement('img');
-    if (!imageUrls.has(record.id)) imageUrls.set(record.id, URL.createObjectURL(record.blob));
-    image.src = imageUrls.get(record.id);
+    if (record.cloud) {
+      window.MemorialCloudPhotos.attachImage(image, record.id, message => { uploadStatus.textContent = message; });
+    } else {
+      if (!imageUrls.has(record.id)) imageUrls.set(record.id, URL.createObjectURL(record.blob));
+      image.src = imageUrls.get(record.id);
+    }
     image.alt = record.name;
     image.draggable = false;
     image.decoding = 'async';
@@ -2777,27 +2799,55 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
     return button;
   };
   const renderUploadedPhotos = () => {
-    if (!uploadedPhotos.length) return;
+    if (!uploadedPhotos.length) {
+      const empty = document.createElement('p');
+      empty.textContent = isCloud() ? '云端还没有照片，上传第一张回忆吧。' : '当前浏览器没有本地照片。';
+      empty.style.cssText = 'padding:24px;text-align:center;';
+      wall.replaceChildren(empty);
+      album.replaceChildren(empty.cloneNode(true));
+      return;
+    }
     uploadedPhotos.sort((a, b) => b.createdAt - a.createdAt);
     wall.replaceChildren(...uploadedPhotos.slice(0, 5).map((record, index) => makePhotoButton(record, index, true)));
     album.replaceChildren(...uploadedPhotos.map((record, index) => makePhotoButton(record, index, false)));
   };
-  const restorePhotos = async () => {
-    photoUpload.disabled = true;
+  const restorePhotos = async (append = false) => {
+    if (photosBusy) return;
+    setPhotosBusy(true);
+    uploadStatus.textContent = '正在加载照片…';
     try {
-      uploadedPhotos = await photoRepository.list();
+      if (isCloud()) {
+        if (!window.MemorialCloudPhotos) throw new Error('云端照片组件未加载，请强制刷新页面。');
+        const result = await window.MemorialCloudPhotos.list(append ? nextOffset : 0);
+        uploadedPhotos = [...new Map([...(append ? uploadedPhotos : []), ...result.records].map(record => [record.id, record])).values()];
+        nextOffset = result.nextOffset;
+        uploadStatus.textContent = `已加载 ${uploadedPhotos.length} 张云端照片，背板显示最新 5 张。其他设备登录后点击「刷新相册」即可查看。${result.recoveryFailures ? ' 有上传尚未完成确认，请稍后再次刷新。' : ''}`;
+      } else {
+        uploadedPhotos = await localPhotoRepository.list();
+        nextOffset = null;
+        uploadStatus.textContent = `已恢复 ${uploadedPhotos.length} 张本地照片，仅当前浏览器可见；没有迁移或删除。`;
+      }
+      morePhotos.hidden = nextOffset === null;
       renderUploadedPhotos();
-      if (uploadedPhotos.length) uploadStatus.textContent = `已恢复 ${uploadedPhotos.length} 张本地照片。背板显示最新 5 张，其余可在「查看全部照片」中查看。`;
-    } catch {
-      uploadStatus.textContent = '无法读取本地照片，请在独立 preview.html 页面打开，并允许浏览器存储。';
-    } finally { photoUpload.disabled = false; }
+    } catch (error) {
+      uploadStatus.textContent = `相册加载失败：${error.message} 点击「刷新相册」可重试。`;
+    } finally { setPhotosBusy(false); }
   };
+  refreshPhotos.addEventListener('click', () => restorePhotos());
+  morePhotos.addEventListener('click', () => { if (nextOffset !== null) restorePhotos(true); });
+  photoSource.addEventListener('change', () => {
+    uploadedPhotos = [];
+    nextOffset = null;
+    morePhotos.hidden = true;
+    renderUploadedPhotos();
+    restorePhotos();
+  });
   photoUpload.addEventListener('click', () => photoFiles.click());
   photoFiles.addEventListener('change', async () => {
     const files = Array.from(photoFiles.files || []);
     photoFiles.value = '';
-    if (!files.length) return;
-    photoUpload.disabled = true;
+    if (!files.length || photosBusy) return;
+    setPhotosBusy(true);
     let added = 0;
     const failures = [];
     for (const [index, file] of files.entries()) {
@@ -2811,23 +2861,36 @@ html:not([data-auth-ready="true"]) #horizontal-love-page{display:none!important}
         decoded.src = temporaryUrl;
         await decoded.decode();
         if (!decoded.naturalWidth || !decoded.naturalHeight) throw new Error('无法读取照片');
+        if (decoded.naturalWidth > 20000 || decoded.naturalHeight > 20000 || decoded.naturalWidth * decoded.naturalHeight > 40000000) throw new Error('照片不能超过 4000 万像素或单边 20000 像素');
         const record = {
           id: globalThis.crypto?.randomUUID?.() || `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           name: file.name, mimeType: file.type, size: file.size, width: decoded.naturalWidth,
           height: decoded.naturalHeight, createdAt: Date.now(), blob: file
         };
-        await photoRepository.add(record);
-        uploadedPhotos.push(record);
+        if (isCloud()) {
+          uploadedPhotos.push(await window.MemorialCloudPhotos.add(record));
+        } else {
+          await localPhotoRepository.add(record);
+          uploadedPhotos.push(record);
+        }
         added += 1;
       } catch (error) {
         failures.push(`${file.name}：${error.name === 'QuotaExceededError' ? '浏览器存储空间不足' : error.message || '保存失败'}`);
       } finally { if (temporaryUrl) URL.revokeObjectURL(temporaryUrl); }
     }
     renderUploadedPhotos();
-    uploadStatus.textContent = `已保存 ${added} 张照片到当前浏览器，刷新后可恢复，不会同步到其他设备。${failures.length ? ` 未保存：${failures.join('；')}` : ''}`;
-    photoUpload.disabled = false;
+    uploadStatus.textContent = `${isCloud() ? `已确认 ${added} 张照片保存到云端，其他设备刷新相册即可查看。` : `已保存 ${added} 张照片到当前浏览器，不会同步。`}${failures.length ? ` 未完成：${failures.join('；')}` : ''}`;
+    setPhotosBusy(false);
   });
-  restorePhotos();
+  // The authentication and cloud modules are deferred scripts. Wait for them,
+  // then verify the user before any initial cloud request.
+  const startPhotos = async () => {
+    renderUploadedPhotos();
+    try { await window.MemorialAuth.requireUser(); await restorePhotos(); }
+    catch { uploadStatus.textContent = '登录后点击「刷新相册」加载云端照片。'; }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startPhotos, { once: true });
+  else startPhotos();
   root.querySelector('[data-close-photo]').addEventListener('click', () => photoViewer.close());
   photoViewer.addEventListener('close', () => { closePicker(); setPlacing(false); dragState = null; photoOpener?.focus(); });
   photoViewer.addEventListener('click', (event) => {
