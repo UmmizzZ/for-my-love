@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>我们相遇在哪一天</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center; background: radial-gradient(ellipse at 20% 20%, #f8e1e6, transparent 55%), radial-gradient(ellipse at 90% 90%, #f3ddd8, transparent 50%), #fff9f7; color: #63434b; font-family: Georgia, "Noto Serif SC", "Songti SC", serif; }
+    main { width: 100%; padding: 56px 20px; text-align: center; }
+    .heart { color: #c97a8b; font-size: 30px; margin-bottom: 30px; animation: breathe 4s ease-in-out infinite; }
+    h1 { margin: 0 0 48px; font-size: clamp(25px, 5vw, 58px); font-weight: 500; letter-spacing: .08em; white-space: nowrap; }
+    .date { display: flex; justify-content: center; align-items: center; gap: clamp(7px, 2vw, 20px); }
+    .pair { display: flex; align-items: center; gap: 6px; }
+    input { width: clamp(30px, 7vw, 58px); height: clamp(48px, 9vw, 76px); border: 1px solid #dec6cc; border-radius: 9px; background: #fffaf9cc; text-align: center; color: #a44f66; font: 32px Georgia, serif; caret-color: #a44f66; transition: border-color .2s, box-shadow .2s; }
+    input:focus { outline: 2px solid #bc7186; outline-offset: 3px; box-shadow: 0 6px 20px #b3647c15; }
+    input[aria-invalid="true"] { border-color: #b24660; }
+    .unit { margin-left: 3px; font-size: clamp(16px, 3vw, 23px); }
+    .hint { color: #987e84; font-size: 13px; margin: 22px 0 0; letter-spacing: .08em; }
+    [role="status"] { min-height: 24px; margin: 18px 0 10px; color: #a44f66; font-size: 14px; }
+    button { padding: 13px 38px; border: 1px solid #bd7b8b; border-radius: 28px; background: #bd7b8b; color: white; font: inherit; font-size: 16px; letter-spacing: .1em; cursor: pointer; transition: background .2s; }
+    button:hover { background: #a96577; }
+    button:focus-visible { outline: 2px solid #92475d; outline-offset: 4px; }
+    @keyframes breathe { 50% { transform: scale(1.12); opacity: .65; } }
+    @media (prefers-reduced-motion: reduce) { .heart { animation: none; } }
+  </style>
+  <script src="supabase-config.js" defer></script>
+  <script src="supabase-auth.js" defer></script>
+  <script src="access-gate.js" defer></script>
+</head>
+<body>
+  <main>
+    <div class="heart" aria-hidden="true">♡</div>
+    <h1>我们相遇在哪一天</h1>
+    <form novalidate>
+      <div class="date" role="group" aria-label="相遇日期，年份后两位、两位月份、两位日期" aria-describedby="date-hint">
+        <div class="pair"><input type="text" inputmode="numeric" maxlength="1" aria-label="年份十位" autocomplete="off"><input type="text" inputmode="numeric" maxlength="1" aria-label="年份个位" autocomplete="off"><span class="unit">年</span></div>
+        <div class="pair"><input type="text" inputmode="numeric" maxlength="1" aria-label="月份十位" autocomplete="off"><input type="text" inputmode="numeric" maxlength="1" aria-label="月份个位" autocomplete="off"><span class="unit">月</span></div>
+        <div class="pair"><input type="text" inputmode="numeric" maxlength="1" aria-label="日期十位" autocomplete="off"><input type="text" inputmode="numeric" maxlength="1" aria-label="日期个位" autocomplete="off"><span class="unit">日</span></div>
+      </div>
+      <p class="hint" id="date-hint">年份填写后两位 · 月份和日期不足两位请补 0</p>
+      <p role="status" aria-live="polite"></p>
+      <button type="submit">走进我们的故事</button>
+    </form>
+    <noscript><p>请启用 JavaScript 后进入我们的纪念页。</p></noscript>
+  </main>
+</body>
+</html>
